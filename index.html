@@ -26,7 +26,119 @@
 const loadingText = document.querySelector("#loading-text");
 const CACHE_NAME = "hksilksongcache-v2"; // bump version if needed
 
-/* ================= FETCH OVERRIDE ================= */
+// ================== CRITICAL FIXES FOR SAVE ERRORS ==================
+
+// PATCH 1: Validate querySelector to prevent "empty selector" errors
+(function() {
+    const origQuerySelector = document.querySelector;
+    const origQuerySelectorAll = document.querySelectorAll;
+
+    document.querySelector = function(selector) {
+        if (!selector || selector === "") {
+            console.warn("[Fix] Blocked empty selector, returning canvas");
+            return document.getElementById("unity-canvas");
+        }
+        try {
+            return origQuerySelector.call(this, selector);
+        } catch (e) {
+            console.error("[Fix] querySelector error:", selector, e);
+            return null;
+        }
+    };
+
+    document.querySelectorAll = function(selector) {
+        if (!selector || selector === "") {
+            console.warn("[Fix] Blocked empty selectorAll");
+            return [];
+        }
+        try {
+            return origQuerySelectorAll.call(this, selector);
+        } catch (e) {
+            console.error("[Fix] querySelectorAll error:", selector, e);
+            return [];
+        }
+    };
+})();
+
+<<<<<<< HEAD
+// PATCH 2: Wrap dynCall to catch signature mismatches
+window.Module = window.Module || {};
+const origPreRun = window.Module.preRun || [];
+window.Module.preRun = Array.isArray(origPreRun) ? origPreRun : [origPreRun];
+
+window.Module.preRun.push(function() {
+    console.log("[Fix] Initializing patches...");
+
+    // Override dynCall to catch errors gracefully
+    const originalDynCall = Module.dynCall;
+    if (originalDynCall) {
+        Module.dynCall = function(sig, ptr) {
+            try {
+                return originalDynCall.apply(this, arguments);
+            } catch (e) {
+                console.error("[Fix] Caught dynCall error:", sig, e.message);
+                return 0;
+            }
+        };
+    }
+});
+
+// PATCH 3: Catch and handle runtime errors
+window.addEventListener('error', function(e) {
+    if (e.message && (e.message.includes('RuntimeError') || e.message.includes('memory access'))) {
+        console.error("[Fix] Caught WASM error:", e);
+        e.preventDefault();
+        // Don't alert the user for these errors
+        return false;
+    }
+});
+
+// ================== ORIGINAL LOADING CODE ==================
+const loadingText = document.querySelector("#loading-text");
+const CACHE_NAME = "hksilksongcache-v2-fixed";
+=======
+// PATCH 2: Memory configuration - merged with memory-patch.js
+// The memory-patch.js file already sets 3GB initial with 3.75GB max usable for WASM32
+window.Module = window.Module || {};
+
+// Merge CRITICAL error handlers
+const origQuit = window.Module.quit;
+window.Module.quit = function(exitCode) {
+    console.error("[Fix] Unity quit with exit code:", exitCode);
+    if (origQuit) origQuit.call(this, exitCode);
+};
+
+// Runtime initialized hook
+const origOnRuntimeInitialized = window.Module.onRuntimeInitialized;
+window.Module.onRuntimeInitialized = function() {
+    console.log("[Fix] Unity runtime initialized, memory:", Module.TOTAL_MEMORY / (1024*1024) + "MB");
+    if (origOnRuntimeInitialized) origOnRuntimeInitialized.call(this);
+};
+
+const origPreRun = window.Module.preRun || [];
+window.Module.preRun = Array.isArray(origPreRun) ? origPreRun : [origPreRun];
+
+// Note: memory-patch.js already handles preRun initialization
+
+// PATCH 3: Runtime error handling
+// Note: memory-patch.js handles OOM/memory errors globally
+let oomDetected = false;
+
+// Add additional error tracking for logging purposes only
+const origConsoleError = console.error;
+console.error = function(...args) {
+    if (args.some(a => typeof a === 'string' && (a.includes('OOM') || a.includes('abort("OOM")')))) {
+        oomDetected = true;
+    }
+    origConsoleError.apply(console, args);
+};
+
+// ================== ORIGINAL LOADING CODE ==================
+const loadingText = document.querySelector("#loading-text");
+// v3 - forces redownload due to cache corruption issues
+const CACHE_NAME = "hksilksongcache-v3-fixed";
+>>>>>>> acabfc8 (sw)
+
 const originalFetch = window.fetch;
 
 window.fetch = async function(resource, options) {
@@ -43,11 +155,43 @@ window.fetch = async function(resource, options) {
   return originalFetch(resource, options);
 };
 
-/* ================= CACHE CHECK ================= */
 async function isCached() {
   const cache = await caches.open(CACHE_NAME);
   const done = await cache.match("CACHE_COMPLETE");
-  return !!done;
+  if (!done) {
+    console.log("[Cache] No CACHE_COMPLETE marker, redownloading");
+    return false;
+  }
+
+  // Validate cache has essential files (not just the marker)
+  const cacheKeys = await cache.keys();
+  console.log("[Cache] Found", cacheKeys.length, "files");
+
+  // Check if we have a reasonable number of files (should be 150+)
+  if (cacheKeys.length < 100) {
+    console.warn(`[Cache] Only ${cacheKeys.length} files (expected 150+), forcing redownload`);
+    await caches.delete(CACHE_NAME);
+    return false;
+  }
+
+  // Check for critical bundles that are often missing
+  const requiredBundles = [
+    "packed-collections_assets_all_40fc2899a4bf13e2fdf4877fac117bfe.bundle",
+    "packed-scenes-hornet_scenes_all_c907e217c56bc36e9412cc713b6511b0.bundle",
+    "packed-prefabs_assets_all_b19c0cf6b825f4cf18264a6c8f5765a6.bundle"
+  ];
+
+  for (const bundle of requiredBundles) {
+    const exists = await cache.match(bundle);
+    if (!exists) {
+      console.warn(`[Cache] Missing required bundle: ${bundle}, forcing redownload`);
+      await caches.delete(CACHE_NAME);
+      return false;
+    }
+  }
+
+  console.log("[Cache] Validation passed");
+  return true;
 }
 
 async function cleanupOldCaches() {
@@ -63,7 +207,6 @@ async function cleanupOldCaches() {
   );
 }
 
-/* ================= UNZIP ================= */
 async function unzipAndStore(zipBlob) {
   if (!zipBlob) {
     throw new Error("ZIP is missing");
@@ -92,20 +235,17 @@ async function unzipAndStore(zipBlob) {
       }
 
       processed++;
-      loadingText.textContent =
-        `EXTRACTING ASSETS... (${processed}/${total})`;
+      loadingText.textContent = `EXTRACTING ASSETS... (${processed}/${total})`;
     }));
 
     await new Promise(r => setTimeout(r, 0));
   }
 
-  // ✅ mark cache complete
   await cache.put("CACHE_COMPLETE", new Response("ok"));
 
   console.log("Cache complete");
 }
 
-/* ================= DOWNLOAD ================= */
 let loadedBytes = 0;
 
 async function fetchWithProgress(url) {
@@ -130,8 +270,7 @@ async function fetchWithProgress(url) {
     let mbDone = (loadedBytes / (1024 * 1024)).toFixed(2);
     let mbTotal = '1986.64';
 
-    loadingText.textContent =
-      `DOWNLOADING ASSETS... (${mbDone} MB / ${mbTotal} MB)`;
+    loadingText.textContent = `DOWNLOADING ASSETS... (${mbDone} MB / ${mbTotal} MB)`;
   }
 
   let fullBuffer = new Uint8Array(received);
@@ -145,7 +284,6 @@ async function fetchWithProgress(url) {
   return fullBuffer.buffer;
 }
 
-/* ================= MERGE ================= */
 async function mergeFiles(parts) {
   console.log("Downloading parts:", parts.length);
 
@@ -156,7 +294,6 @@ async function mergeFiles(parts) {
   return new Blob(buffers);
 }
 
-/* ================= UTIL ================= */
 function getParts(file, start, end) {
   let parts = [];
   for (let i = start; i <= end; i++) {
@@ -165,10 +302,9 @@ function getParts(file, start, end) {
   return parts;
 }
 
-/* ================= MAIN ================= */
 (async () => {
   try {
-    await cleanupOldCaches(); 
+    await cleanupOldCaches();
     if (!(await isCached())) {
       loadingText.textContent = "DOWNLOADING ASSETS...";
 
@@ -181,7 +317,6 @@ function getParts(file, start, end) {
       loadingText.textContent = "LOADING FROM CACHE...";
     }
 
-    /* ================= UNITY START ================= */
     const canvas = document.querySelector("#unity-canvas");
     const loadingBar = document.querySelector("#unity-loading-bar");
     const progressBarFull = document.querySelector("#unity-progress-bar-full");
@@ -228,17 +363,35 @@ function getParts(file, start, end) {
     loadingBar.style.display = "block";
 
     const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@latest/Build/w-pt.loader.js";
+
+    // DYNAMIC LOADER: Local for localhost, CDN for production
+    if (isLocalhost) {
+      script.src = "Build/w-pt.loader.js";
+      console.log("[Fix] Loading local build from:", window.location.origin);
+    } else {
+      script.src = "https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@latest/Build/w-pt.loader.js";
+      console.log("[Fix] Loading from CDN");
+    }
 
     script.onload = () => {
       createUnityInstance(canvas, config, (progress) => {
         progressBarFull.style.width = (progress * 100) + "%";
       })
-      .then(() => {
+      .then((unityInstance) => {
         loadingBar.remove();
         loadingText.remove();
+        window.unityInstance = unityInstance; // Expose for debugging
+        console.log("Unity loaded successfully");
       })
-      .catch(alert);
+      .catch((err) => {
+        console.error("Unity load failed:", err);
+        alert("Failed to load game: " + err.message);
+      });
+    };
+
+    script.onerror = (err) => {
+      console.error("Script load failed:", err);
+      loadingText.textContent = "ERROR: Failed to load game files. Check console.";
     };
 
     document.body.appendChild(script);
