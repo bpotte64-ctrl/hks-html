@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en-us">
   <head>
-    <base href="https://cdn.jsdelivr.net/gh/bpotte64-ctrl/idkkk/67">
+    <base href="https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@master/">
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>Unity Web Player | Hollow Knight SilkSong</title>
@@ -23,7 +23,7 @@
     <script src="jszip.js"></script>
 
 <script>
-  const loadingText = document.querySelector("#loading-text");
+const loadingText = document.querySelector("#loading-text");
 const CACHE_NAME = "hksilksongcache-v2"; // bump version if needed
 
 /* ================= FETCH OVERRIDE ================= */
@@ -228,7 +228,7 @@ function getParts(file, start, end) {
     loadingBar.style.display = "block";
 
     const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/gh/bpotte64-ctrl/idkkk/67";
+    script.src = "https://cdn.jsdelivr.net/gh/web-ports/hollow-knight-silksong@latest/Build/w-pt.loader.js";
 
     script.onload = () => {
       createUnityInstance(canvas, config, (progress) => {
@@ -248,6 +248,9 @@ function getParts(file, start, end) {
     loadingText.textContent = "ERROR: " + err.message;
   }
 })();
+</script>
+  </body>
+</html>
 </script>
   </body>
 </html>
