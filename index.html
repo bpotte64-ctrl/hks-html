@@ -23,6 +23,9 @@
     <script src="jszip.js"></script>
 
 <script>
+  const loadingText = document.querySelector("#loading-text");
+const CACHE_NAME = "hksilksongcache-v2"; // bump version if needed
+
 /* ================= FETCH OVERRIDE ================= */
 const originalFetch = window.fetch;
 
