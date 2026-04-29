@@ -25,7 +25,29 @@
 <script>
 const loadingText = document.querySelector("#loading-text");
 const CACHE_NAME = "hksilksongcache-v2"; // bump version if needed
+// ================== MEMORY CONFIGURATION ==================
+// Game needs 4GB+ but WASM32 limit is ~3.7GB usable.
+// These settings MUST be applied BEFORE the loader script runs.
+// Note: If the Unity build was compiled with lower limits, these won't help.
+(function() {
+    // Merge with memory-patch.js settings
+    window.Module = window.Module || {};
 
+    // Additional runtime error suppression
+    window.Module.noInitialRun = false;
+
+    // Runtime initialized hook
+    window.Module.onRuntimeInitialized = function() {
+        console.log("[Fix] Unity runtime initialized");
+    };
+
+    // Catch all errors
+    window.Module.onAbort = function(what) {
+        console.error("[Fix] Unity aborted:", what);
+    };
+})();
+
+const loadingText = document.querySelector("#loading-text");
 /* ================= FETCH OVERRIDE ================= */
 const originalFetch = window.fetch;
 
