@@ -2,20 +2,25 @@
 <html lang="en-us">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hollow Knight Silksong</title>
+  <title>Hollow Knight SilkSong</title>
+  <link rel="shortcut icon" href="TemplateData/favicon.ico">
   <link rel="stylesheet" href="TemplateData/style.css">
   <style>
-    body { margin: 0; background: #000; overflow: hidden; }
-    #unity-container { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; }
+    #unity-container { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #000; }
     #unity-canvas { width: 100%; height: 100%; background: #000; }
-    #unity-warning, #loading-text {
-      position: absolute; left: 50%; transform: translateX(-50%);
-      color: white; font-family: sans-serif; z-index: 10;
+    #loading-text {
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+      z-index: 20; color: #fff; font: 600 22px/1.2 sans-serif; text-align: center;
+      text-shadow: 0 1px 2px rgba(0,0,0,.8);
     }
-    #loading-text { top: 20px; font-size: 24px; }
-    #unity-warning { bottom: 20px; width: min(90vw, 800px); }
+    #unity-warning {
+      position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+      z-index: 20; width: min(92vw, 900px); color: #fff; font-family: sans-serif;
+    }
+    #unity-warning > div { margin-top: 8px; padding: 10px 12px; border-radius: 6px; }
   </style>
 </head>
 <body>
@@ -25,43 +30,42 @@
   </div>
   <div id="unity-warning"></div>
 
-  <script src="jszip.min.js"></script>
   <script src="w-pt.loader.js"></script>
   <script>
-    const canvas = document.querySelector("#unity-canvas");
-    const loadingText = document.querySelector("#loading-text");
-    const warningBanner = document.querySelector("#unity-warning");
+    const canvas = document.querySelector('#unity-canvas');
+    const loadingText = document.querySelector('#loading-text');
+    const warningBanner = document.querySelector('#unity-warning');
 
     function unityShowBanner(msg, type) {
-      const div = document.createElement("div");
+      const div = document.createElement('div');
       div.textContent = msg;
-      div.style.padding = "10px";
-      div.style.margin = "6px 0";
-      div.style.background = type === "error" ? "rgba(180,0,0,0.85)" : "rgba(180,180,0,0.85)";
+      div.style.background = type === 'error' ? 'rgba(160, 0, 0, 0.9)' : 'rgba(160, 160, 0, 0.9)';
       warningBanner.appendChild(div);
       setTimeout(() => div.remove(), 5000);
     }
 
     const config = {
-      dataUrl: "w-pt.data.unityweb",
-      frameworkUrl: "w-pt.framework.js.unityweb",
-      codeUrl: "w-pt.wasm.unityweb",
-      streamingAssetsUrl: "StreamingAssets",
-      companyName: "EDUrocks Group, Truffled, GN-Math",
-      productName: "Hollow Knight SilkSong",
-      productVersion: "1.0",
-      showBanner: unityShowBanner
+      dataUrl: 'w-pt.data.unityweb',
+      frameworkUrl: 'w-pt.framework.js.unityweb',
+      codeUrl: 'w-pt.wasm.unityweb',
+      streamingAssetsUrl: 'StreamingAssets',
+      companyName: 'EDUrocks Group, Truffled, GN-Math',
+      productName: 'Hollow Knight SilkSong',
+      productVersion: '1.0',
+      showBanner: unityShowBanner,
+      webglContextAttributes: { preserveDrawingBuffer: false, powerPreference: 1 }
     };
 
-    if (!window.WebAssembly || !window.WebGLRenderingContext) {
-      loadingText.textContent = "This Chromebook does not support WebGL/WebAssembly for this build.";
+    const isSupported = !!window.WebAssembly && (!!window.WebGLRenderingContext || !!window.WebGL2RenderingContext);
+    if (!isSupported) {
+      loadingText.textContent = 'This Chromebook does not support WebAssembly or WebGL for this build.';
     } else {
       createUnityInstance(canvas, config, progress => {
         loadingText.textContent = `LOADING... ${Math.round(progress * 100)}%`;
       }).then(() => {
         loadingText.remove();
       }).catch(err => {
-        loadingText.textContent = "ERROR: " + err.message;
+        loadingText.textContent = 'ERROR: ' + err.message;
         console.error(err);
       });
     }
