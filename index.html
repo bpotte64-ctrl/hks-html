@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html>
+<html lang="en-us">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Debug</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>Hollow Knight SilkSong</title>
   <style>
-    body { margin: 0; background: #000; color: #0f0; font-family: monospace; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #000; color: #0f0; font-family: monospace; }
     #top { padding: 12px; }
     #log {
       height: calc(100vh - 52px);
@@ -15,6 +16,8 @@
       box-sizing: border-box;
       white-space: pre-wrap;
     }
+    #unity-container { position: fixed; inset: 0; display: none; }
+    #unity-canvas { width: 100%; height: 100%; display: block; background: #000; }
     .warn { color: #ff0; }
     .error { color: #f66; }
     .progress { color: #66f; }
@@ -23,20 +26,24 @@
 <body>
   <div id="top">DEBUG CONSOLE</div>
   <div id="log"></div>
+  <div id="unity-container"><canvas id="unity-canvas" tabindex="-1"></canvas></div>
 
+  <script src="w-pt.loader.js"></script>
   <script>
     const logEl = document.getElementById('log');
-    let logging = false;
+    const unityContainer = document.getElementById('unity-container');
+    const canvas = document.getElementById('unity-canvas');
+    let busy = false;
 
     function addLine(msg, cls='') {
-      if (logging) return;
-      logging = true;
+      if (busy) return;
+      busy = true;
       const div = document.createElement('div');
       if (cls) div.className = cls;
       div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
       logEl.appendChild(div);
       logEl.scrollTop = logEl.scrollHeight;
-      logging = false;
+      busy = false;
     }
 
     const nativeConsole = {
@@ -46,26 +53,65 @@
       info: console.info.bind(console)
     };
 
-    console.log = (...args) => { addLine(args.map(x => String(x)).join(' ')); nativeConsole.log(...args); };
-    console.warn = (...args) => { addLine(args.map(x => String(x)).join(' '), 'warn'); nativeConsole.warn(...args); };
-    console.error = (...args) => { addLine(args.map(x => String(x)).join(' '), 'error'); nativeConsole.error(...args); };
-    console.info = (...args) => { addLine(args.map(x => String(x)).join(' ')); nativeConsole.info(...args); };
+    console.log = (...args) => { addLine(args.map(String).join(' ')); nativeConsole.log(...args); };
+    console.warn = (...args) => { addLine(args.map(String).join(' '), 'warn'); nativeConsole.warn(...args); };
+    console.error = (...args) => { addLine(args.map(String).join(' '), 'error'); nativeConsole.error(...args); };
+    console.info = (...args) => { addLine(args.map(String).join(' ')); nativeConsole.info(...args); };
 
-    window.addEventListener('error', e => {
-      addLine(`SCRIPT ERROR: ${e.message}`, 'error');
-    });
+    window.addEventListener('error', e => addLine(`SCRIPT ERROR: ${e.message}`, 'error'));
+    window.addEventListener('unhandledrejection', e => addLine(`PROMISE ERROR: ${e.reason}`, 'error'));
 
-    window.addEventListener('unhandledrejection', e => {
-      addLine(`PROMISE ERROR: ${e.reason}`, 'error');
-    });
+    function testFetch(path) {
+      return fetch(path, { cache: 'no-store' })
+        .then(r => addLine(`${path}: ${r.ok ? 'OK' : 'FAIL ' + r.status}`, r.ok ? '' : 'error'))
+        .catch(() => addLine(`${path}: FETCH FAILED`, 'error'));
+    }
 
-    addLine('Page loaded');
     addLine('Checking support...');
-
     const testCanvas = document.createElement('canvas');
     const gl = testCanvas.getContext('webgl') || testCanvas.getContext('webgl2');
     addLine(`WebGL: ${!!gl}`);
     addLine(`WebAssembly: ${!!window.WebAssembly}`);
+
+    const files = [
+      'w-pt.loader.js',
+      'w-pt.data.unityweb',
+      'w-pt.framework.js.unityweb',
+      'w-pt.wasm.unityweb'
+    ];
+
+    Promise.all(files.map(testFetch)).then(() => {
+      addLine('File checks done.');
+      startUnity();
+    });
+
+    function unityShowBanner(msg, type) {
+      addLine(`BANNER [${type}]: ${msg}`, type === 'error' ? 'error' : 'warn');
+    }
+
+    function startUnity() {
+      unityContainer.style.display = 'block';
+      const config = {
+        dataUrl: 'w-pt.data.unityweb',
+        frameworkUrl: 'w-pt.framework.js.unityweb',
+        codeUrl: 'w-pt.wasm.unityweb',
+        streamingAssetsUrl: 'StreamingAssets',
+        companyName: 'EDUrocks Group, Truffled, GN-Math',
+        productName: 'Hollow Knight SilkSong',
+        productVersion: '1.0',
+        showBanner: unityShowBanner,
+        webglContextAttributes: { preserveDrawingBuffer: false, powerPreference: 1 }
+      };
+
+      addLine('Calling createUnityInstance...');
+      createUnityInstance(canvas, config, p => {
+        addLine(`PROGRESS: ${Math.round(p * 100)}%`, 'progress');
+      }).then(() => {
+        addLine('Unity loaded successfully.');
+      }).catch(err => {
+        addLine(`FAILED: ${err.message}`, 'error');
+      });
+    }
   </script>
 </body>
 </html>
