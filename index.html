@@ -7,17 +7,55 @@
   <title>Hollow Knight SilkSong</title>
   <link rel="stylesheet" href="TemplateData/style.css">
   <style>
-    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #000; color: #0f0; font-family: monospace; }
-    #status { padding: 10px; }
-    #log { height: calc(100vh - 42px); overflow-y: auto; padding: 10px; white-space: pre-wrap; border-top: 1px solid #0f0; }
-    #unity-container { position: fixed; inset: 0; display: none; }
-    #unity-canvas { width: 100%; height: 100%; display: block; background: #000; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      color: #0f0;
+      font-family: monospace;
+    }
+    #status {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 10px;
+      z-index: 20;
+      background: rgba(0,0,0,0.85);
+    }
+    #log {
+      position: fixed;
+      top: 42px;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      overflow-y: auto;
+      padding: 10px;
+      white-space: pre-wrap;
+      box-sizing: border-box;
+      border-top: 1px solid #0f0;
+    }
+    #unity-container {
+      position: fixed;
+      inset: 0;
+      display: none;
+    }
+    #unity-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #000;
+    }
   </style>
 </head>
 <body>
   <div id="status">Starting...</div>
   <div id="log"></div>
-  <div id="unity-container"><canvas id="unity-canvas" tabindex="-1"></canvas></div>
+  <div id="unity-container">
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+  </div>
 
   <script src="Build/w-pt.loader.js"></script>
   <script>
@@ -49,7 +87,12 @@
       productName: 'Hollow Knight SilkSong',
       productVersion: '1.0',
       showBanner: showBanner,
-      webglContextAttributes: { preserveDrawingBuffer: false, powerPreference: 1 },
+      webglContextAttributes: {
+        preserveDrawingBuffer: false,
+        powerPreference: 1,
+        alpha: false,
+        antialias: false
+      },
       cacheControl: function(url) {
         if (url.match(/\.data/) || url.match(/\.bundle/) || url.match(/\.wasm/) || url.match(/\.unityweb/)) return 'must-revalidate';
         return 'no-store';
