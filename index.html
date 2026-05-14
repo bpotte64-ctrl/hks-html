@@ -1,68 +1,71 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Debug</title>
   <style>
-    body { margin: 0; background: #000; color: #0f0; font-family: monospace; font-size: 14px; padding: 20px; }
-    #log { height: 80vh; overflow-y: scroll; background: rgba(0,0,0,0.9); padding: 10px; }
-    .error { color: #f66; }
+    body { margin: 0; background: #000; color: #0f0; font-family: monospace; }
+    #top { padding: 12px; }
+    #log {
+      height: calc(100vh - 52px);
+      overflow-y: auto;
+      background: rgba(0,0,0,0.95);
+      padding: 10px;
+      box-sizing: border-box;
+      white-space: pre-wrap;
+    }
     .warn { color: #ff0; }
+    .error { color: #f66; }
     .progress { color: #66f; }
   </style>
 </head>
 <body>
-  <h1>DEBUG CONSOLE</h1>
+  <div id="top">DEBUG CONSOLE</div>
   <div id="log"></div>
 
   <script>
-    const log = document.getElementById('log');
-    const addLog = (msg, type = 'log') => {
+    const logEl = document.getElementById('log');
+    let logging = false;
+
+    function addLine(msg, cls='') {
+      if (logging) return;
+      logging = true;
       const div = document.createElement('div');
-      div.className = type;
+      if (cls) div.className = cls;
       div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-      log.appendChild(div);
-      log.scrollTop = log.scrollHeight;
-      console.log(msg);
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+      logging = false;
+    }
+
+    const nativeConsole = {
+      log: console.log.bind(console),
+      warn: console.warn.bind(console),
+      error: console.error.bind(console),
+      info: console.info.bind(console)
     };
 
-    // Override console
-    ['log','warn','error','info'].forEach(m => {
-      const orig = console[m];
-      console[m] = (...args) => {
-        addLog(args.join(' '), m);
-        orig.apply(console, args);
-      };
+    console.log = (...args) => { addLine(args.map(x => String(x)).join(' ')); nativeConsole.log(...args); };
+    console.warn = (...args) => { addLine(args.map(x => String(x)).join(' '), 'warn'); nativeConsole.warn(...args); };
+    console.error = (...args) => { addLine(args.map(x => String(x)).join(' '), 'error'); nativeConsole.error(...args); };
+    console.info = (...args) => { addLine(args.map(x => String(x)).join(' ')); nativeConsole.info(...args); };
+
+    window.addEventListener('error', e => {
+      addLine(`SCRIPT ERROR: ${e.message}`, 'error');
     });
 
-    window.addEventListener('error', e => addLog(`SCRIPT ERROR: ${e.message}`, 'error'));
-    window.addEventListener('unhandledrejection', e => addLog(`PROMISE ERROR: ${e.reason}`, 'error'));
+    window.addEventListener('unhandledrejection', e => {
+      addLine(`PROMISE ERROR: ${e.reason}`, 'error');
+    });
 
-    addLog('1. Page loaded, debug console active');
-    addLog('2. Checking WebGL/WASM support...');
+    addLine('Page loaded');
+    addLine('Checking support...');
 
-    const canvas = document.createElement('canvas');
-    const gl = canvas.getContext('webgl') || canvas.getContext('webgl2');
-    const hasWebGL = !!gl;
-    const hasWASM = !!window.WebAssembly;
-
-    addLog(`WebGL: ${hasWebGL} | WebAssembly: ${hasWASM}`);
-
-    if (!hasWebGL || !hasWASM) {
-      addLog('CRITICAL: Missing WebGL or WebAssembly - Chromebook may not support this build', 'error');
-    } else {
-      addLog('Support OK, checking files...');
-      
-      // Test file existence
-      const testFiles = ['w-pt.loader.js', 'w-pt.data.unityweb', 'w-pt.framework.js.unityweb', 'w-pt.wasm.unityweb'];
-      testFiles.forEach(file => {
-        const link = document.createElement('link');
-        link.rel = 'prefetch';
-        link.href = file;
-        link.onload = () => addLog(`${file}: OK`);
-        link.onerror = () => addLog(`${file}: MISSING or UNLOADABLE`, 'error');
-        document.head.appendChild(link);
-      });
-    }
+    const testCanvas = document.createElement('canvas');
+    const gl = testCanvas.getContext('webgl') || testCanvas.getContext('webgl2');
+    addLine(`WebGL: ${!!gl}`);
+    addLine(`WebAssembly: ${!!window.WebAssembly}`);
   </script>
 </body>
 </html>
